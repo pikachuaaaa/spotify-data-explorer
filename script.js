@@ -1,8 +1,22 @@
-
-const n = 5
-
+const readline = require('readline')
 const path = require('path');
 const fs = require('fs');
+
+let n = 50;
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+})
+
+rl.question('Ile piosenek w topkach wyświetlić?', (answer) => {
+    console.log(`Wybrałeś: ${answer}`);
+    n = Number(answer)
+
+    // tutaj
+})
+
+rl.close()
 
 const dir = 'Spotify Extended Streaming History';
 const files = fs.readdirSync(dir).sort()
@@ -27,6 +41,20 @@ let totalUniqueSongsCount = 0
 
 let yearsCount = 0;
 
+const listeningByDay = Array(7).fill(0);
+const listeningByHour = Array(24).fill(0);
+const listeningByMonth = Array(12).fill(0);
+const listeningByPlatform = new Map()
+
+const labels = {
+    days: ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"],
+    months: ["Styczeń", "Luteń", "Marzeń", "Kwiecień", "Majeń", "Czerwień", "Lipień", "Sierpień", "Wrzesień", "Październień", "Listopadzień", "Grudzień"],
+    hours: []
+}
+for (let i = 1; i <= 24; i++) {
+    labels.hours.push(i)
+}
+
 let sortedSongs
 
 function formatTime(minutes) {
@@ -37,6 +65,88 @@ function formatTime(minutes) {
     minutes = Math.round(minutes % 60);
 
     return `${days} dni, ${hours} godz. ${minutes} min`;
+}
+
+function progressBar(
+    elementsNumber,
+    charActive,
+    charNonActive,
+    currentValue,
+    maxValue,
+) {
+    if (elementsNumber > 10) {
+        elementsNumber = 10;
+    }
+
+    const filledElements =
+        currentValue > 0
+            ? Math.max(
+                1,
+                Math.floor((currentValue / maxValue) * elementsNumber),
+            )
+            : 0;
+
+    let chars = "";
+
+    for (let i = 0; i < elementsNumber; i++) {
+        if (i < filledElements) {
+            chars += charActive;
+        } else {
+            chars += charNonActive;
+        }
+    }
+
+    return chars;
+}
+
+function printBarChart(labels, values, unit = "") {
+    const maxValue = Math.max(...values);
+
+    for (let i = 0; i < values.length; i++) {
+        const bar = progressBar(
+            10,
+            "█",
+            "░",
+            values[i],
+            maxValue
+        );
+
+        console.log(
+            `${String(labels[i]).padEnd(12)} ${bar} ${values[i].toFixed(0)}${unit}`
+        );
+    }
+}
+
+function normalizePlatform(platform) {
+    if (!platform) return "unknown";
+
+    const lower = platform.toLowerCase();
+
+    if (lower.startsWith("android")) {
+        return "android";
+    }
+
+    if (lower.startsWith("windows")) {
+        return "windows";
+    }
+
+    if (lower.startsWith("linux")) {
+        return "linux";
+    }
+
+    if (lower.startsWith("ios")) {
+        return "ios";
+    }
+
+    if (lower.startsWith("tizen")) {
+        return "tizen";
+    }
+
+    if (lower.startsWith("web_player")) {
+        return "web player";
+    }
+
+    return platform;
 }
 
 for (const file of files) {
@@ -58,6 +168,12 @@ for (const file of files) {
     }
 
     for (const entry of data) {
+        const platform = normalizePlatform(entry.platform);
+
+        if (!listeningByPlatform.has(platform)) {
+            listeningByPlatform.set(platform, 0);
+        }
+
         totalByYear[year][type].time += entry.ms_played;
         totalByYear[year][type].count++;
 
@@ -79,6 +195,18 @@ for (const file of files) {
 
         songData.count++;
         songData.time += entry.ms_played;
+
+        listeningByPlatform.set(
+            platform,
+            listeningByPlatform.get(platform) + entry.ms_played
+        );
+
+        const date = new Date(entry.ts);
+        const time = entry.ms_played;
+
+        listeningByDay[date.getDay()] += time;
+        listeningByHour[date.getHours()] += time;
+        listeningByMonth[date.getMonth()] += time;
     }
 }
 
@@ -117,14 +245,33 @@ sortedSongs = [...songs.entries()]
 sortedArtists = [...artists.entries()]
     .sort((a, b) => b[1].count - a[1].count);
 
+const platformEntries = [...listeningByPlatform.entries()];
 
+const platformLabels = platformEntries.map(
+    ([platform]) => platform
+);
+
+
+
+const minutesByDay = listeningByDay.map(
+    time => time / 1000 / 60
+);
+const minutesByHour = listeningByHour.map(
+    time => time / 1000 / 60
+);
+const minutesByMonth = listeningByMonth.map(
+    time => time / 1000 / 60
+);
+const minutesByPlatform = platformEntries.map(
+    ([, time]) => time / 1000 / 60
+);
 
 console.log("\n========================================");
 console.log("           SPOTIFY STATISTICS");
 console.log("========================================\n");
 
 
-console.log("🎵 TOP SONGS");
+console.log("TOP SONGS");
 console.log("----------------------------------------");
 
 for (let i = 0; i < n && i < sortedSongs.length; i++) {
@@ -136,7 +283,7 @@ for (let i = 0; i < n && i < sortedSongs.length; i++) {
 }
 
 
-console.log("\n🎤 TOP ARTISTS");
+console.log("\nTOP ARTISTS");
 console.log("----------------------------------------");
 
 for (let i = 0; i < n && i < sortedArtists.length; i++) {
@@ -148,7 +295,7 @@ for (let i = 0; i < n && i < sortedArtists.length; i++) {
 }
 
 
-console.log("\n📊 GENERAL STATISTICS");
+console.log("\nGENERAL STATISTICS");
 console.log("----------------------------------------");
 
 console.log(`Czas słuchania muzyki                : ${totalSongsTime.toFixed(2)} min`);
@@ -167,5 +314,19 @@ console.log(
 
 console.log(`Unikalne IP                          : ${ipAddressesList.length}`);
 
+
+console.log("\n========================================\n");
+
+console.log("\nCHARTS")
+console.log("----------------------------------------");
+
+console.log(`\nWysłuchane minuty według miesiecy\n`)
+printBarChart(labels.months, minutesByMonth," min")
+console.log(`\nWysłuchane minuty według dni tygodnia\n`)
+printBarChart(labels.days, minutesByDay," min")
+console.log(`\nWysłuchane minuty według godzin\n`)
+printBarChart(labels.hours, minutesByHour," min")
+console.log(`\nWysłuchane minuty według platformy\n`)
+printBarChart(platformLabels, minutesByPlatform," min")
 
 console.log("\n========================================\n");
