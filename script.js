@@ -2,7 +2,7 @@ const readline = require('readline')
 const path = require('path');
 const fs = require('fs');
 
-let n = 50;
+let n = 5;
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -13,320 +13,414 @@ rl.question('Ile piosenek w topkach wyświetlić?', (answer) => {
     console.log(`Wybrałeś: ${answer}`);
     n = Number(answer)
 
-    // tutaj
+    run(n)
+
+    rl.close()
 })
 
-rl.close()
+function run(n) {
 
-const dir = 'Spotify Extended Streaming History';
-const files = fs.readdirSync(dir).sort()
+    const dir = 'Spotify Extended Streaming History';
+    const files = fs.readdirSync(dir).sort()
 
-let totalByYear = {}
+    let totalByYear = {}
 
-let totalSongsTime = 0;
-let totalVideoTime = 0;
+    let totalSongsTime = 0;
+    let totalVideoTime = 0;
 
-let totalSongsCount = 0;
-let totalVideoCount = 0;
+    let totalSongsCount = 0;
+    let totalVideoCount = 0;
 
-let yearlySongsTimeAverage = 0
-let yearlyVideoTimeAverage = 0
+    let yearlySongsTimeAverage = 0
+    let yearlyVideoTimeAverage = 0
 
-let ipAddressesList = []
+    let ipAddressesList = []
 
-const songs = new Map()
-const artists = new Map()
+    const songs = new Map()
+    const artists = new Map()
 
-let totalUniqueSongsCount = 0
+    let totalUniqueSongsCount = 0
 
-let yearsCount = 0;
+    let yearsCount = 0;
 
-const listeningByDay = Array(7).fill(0);
-const listeningByHour = Array(24).fill(0);
-const listeningByMonth = Array(12).fill(0);
-const listeningByPlatform = new Map()
+    const listeningByDay = Array(7).fill(0);
+    const listeningByHour = Array(24).fill(0);
+    const listeningByMonth = Array(12).fill(0);
+    const listeningByPlatform = new Map()
 
-const labels = {
-    days: ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"],
-    months: ["Styczeń", "Luteń", "Marzeń", "Kwiecień", "Majeń", "Czerwień", "Lipień", "Sierpień", "Wrzesień", "Październień", "Listopadzień", "Grudzień"],
-    hours: []
-}
-for (let i = 1; i <= 24; i++) {
-    labels.hours.push(i)
-}
-
-let sortedSongs
-
-function formatTime(minutes) {
-    const days = Math.floor(minutes / 1440);
-    minutes %= 1440;
-
-    const hours = Math.floor(minutes / 60);
-    minutes = Math.round(minutes % 60);
-
-    return `${days} dni, ${hours} godz. ${minutes} min`;
-}
-
-function progressBar(
-    elementsNumber,
-    charActive,
-    charNonActive,
-    currentValue,
-    maxValue,
-) {
-    if (elementsNumber > 10) {
-        elementsNumber = 10;
+    const labels = {
+        years: [],
+        days: ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"],
+        months: ["Styczeń", "Luteń", "Marzeń", "Kwiecień", "Majeń", "Czerwień", "Lipień", "Sierpień", "Wrzesień", "Październień", "Listopadzień", "Grudzień"],
+        hours: []
+    }
+    for (let i = 1; i <= 24; i++) {
+        labels.hours.push(i)
     }
 
-    const filledElements =
-        currentValue > 0
-            ? Math.max(
-                1,
-                Math.floor((currentValue / maxValue) * elementsNumber),
-            )
-            : 0;
+    let sortedSongs
 
-    let chars = "";
+    const yearlySongs = new Map()
+    const yearlyArtists = new Map()
 
-    for (let i = 0; i < elementsNumber; i++) {
-        if (i < filledElements) {
-            chars += charActive;
-        } else {
-            chars += charNonActive;
+    function formatTime(minutes) {
+        const days = Math.floor(minutes / 1440);
+        minutes %= 1440;
+
+        const hours = Math.floor(minutes / 60);
+        minutes = Math.round(minutes % 60);
+
+        return `${days} dni, ${hours} godz. ${minutes} min`;
+    }
+
+    function progressBar(
+        elementsNumber,
+        charActive,
+        charNonActive,
+        currentValue,
+        maxValue,
+    ) {
+        if (elementsNumber > 10) {
+            elementsNumber = 10;
+        }
+
+        const filledElements =
+            currentValue > 0
+                ? Math.max(
+                    1,
+                    Math.floor((currentValue / maxValue) * elementsNumber),
+                )
+                : 0;
+
+        let chars = "";
+
+        for (let i = 0; i < elementsNumber; i++) {
+            if (i < filledElements) {
+                chars += charActive;
+            } else {
+                chars += charNonActive;
+            }
+        }
+
+        return chars;
+    }
+
+    function printBarChart(labels, values, unit = "") {
+        const maxValue = Math.max(...values);
+
+        for (let i = 0; i < values.length; i++) {
+            const bar = progressBar(
+                10,
+                "█",
+                "░",
+                values[i],
+                maxValue
+            );
+
+            console.log(
+                `${String(labels[i]).padEnd(12)} ${bar} ${values[i].toFixed(0)}${unit}`
+            );
         }
     }
 
-    return chars;
-}
+    function normalizePlatform(platform) {
+        if (!platform) return "unknown";
 
-function printBarChart(labels, values, unit = "") {
-    const maxValue = Math.max(...values);
+        const lower = platform.toLowerCase();
 
-    for (let i = 0; i < values.length; i++) {
-        const bar = progressBar(
-            10,
-            "█",
-            "░",
-            values[i],
-            maxValue
-        );
+        if (lower.startsWith("android")) {
+            return "android";
+        }
+
+        if (lower.startsWith("windows")) {
+            return "windows";
+        }
+
+        if (lower.startsWith("linux")) {
+            return "linux";
+        }
+
+        if (lower.startsWith("ios")) {
+            return "ios";
+        }
+
+        if (lower.startsWith("tizen")) {
+            return "tizen";
+        }
+
+        if (lower.startsWith("web_player")) {
+            return "web player";
+        }
+
+        return platform;
+    }
+
+    function getTop(map, n) {
+        return [...map.entries()]
+            .sort((a, b) => b[1].count - a[1].count)
+            .slice(0, n);
+    }
+
+    for (const file of files) {
+        if (!file.endsWith(".json")) continue;
+
+        const filePath = path.join(dir, file);
+        const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+
+        const yearMatch = file.match(/\d{4}/);
+        if (!yearMatch) continue;
+        const year = yearMatch[0];
+        const type = file.includes("_Audio_") ? "audio" : "video";
+
+        if (!yearlySongs.has(year)) {
+            yearlySongs.set(year, new Map());
+        }
+
+        if (!yearlyArtists.has(year)) {
+            yearlyArtists.set(year, new Map());
+        }
+
+        if (!totalByYear[year]) {
+            totalByYear[year] = {
+                audio: {time: 0, count: 0},
+                video: {time: 0, count: 0}
+            };
+        }
+
+        for (const entry of data) {
+            const platform = normalizePlatform(entry.platform);
+
+            if (!listeningByPlatform.has(platform)) {
+                listeningByPlatform.set(platform, 0);
+            }
+
+            totalByYear[year][type].time += entry.ms_played;
+            totalByYear[year][type].count++;
+
+            if (!ipAddressesList.includes(entry.ip_addr)) {
+                ipAddressesList.push(entry.ip_addr);
+            }
+
+            const song = entry.master_metadata_track_name;
+            const artist = entry.master_metadata_album_artist_name;
+
+
+            if (!songs.has(song)) {
+                songs.set(song, {
+                    count: 0,
+                    time: 0,
+                    artist: artist,
+                });
+            }
+
+            const songData = songs.get(song);
+
+            songData.count++;
+            songData.time += entry.ms_played;
+
+            if (!artists.has(artist)) {
+                artists.set(artist, {
+                    count: 0,
+                    time: 0
+                });
+            }
+
+            const artistData = artists.get(artist);
+
+            artistData.count++;
+            artistData.time += entry.ms_played;
+
+            const songsThisYear = yearlySongs.get(year);
+            const artistsThisYear = yearlyArtists.get(year);
+
+            if (!songsThisYear.has(song)) {
+                songsThisYear.set(song, {
+                    count: 0,
+                    time: 0,
+                    artist: artist
+                });
+            }
+
+            const yearlySongData = songsThisYear.get(song);
+
+            yearlySongData.count++;
+            yearlySongData.time += entry.ms_played;
+
+            if (!artistsThisYear.has(artist)) {
+                artistsThisYear.set(artist, {
+                    count: 0,
+                    time: 0
+                });
+            }
+
+            const yearlyArtistData = artistsThisYear.get(artist);
+
+            yearlyArtistData.count++;
+            yearlyArtistData.time += entry.ms_played;
+
+            listeningByPlatform.set(
+                platform,
+                listeningByPlatform.get(platform) + entry.ms_played
+            );
+
+            const date = new Date(entry.ts);
+            const time = entry.ms_played;
+
+            listeningByDay[date.getDay()] += time;
+            listeningByHour[date.getHours()] += time;
+            listeningByMonth[date.getMonth()] += time;
+        }
+    }
+
+    for (const entry of Object.values(totalByYear)) {
+        totalSongsTime += entry.audio.time / (1000 * 60);
+        totalSongsCount += entry.audio.count;
+
+        totalVideoTime += entry.video.time / (1000 * 60);
+        totalVideoCount += entry.video.count;
+    }
+
+    yearsCount = Object.keys(totalByYear).length
+
+    yearlySongsTimeAverage = (totalSongsTime / yearsCount);
+    yearlyVideoTimeAverage = (totalVideoTime / yearsCount);
+
+    totalUniqueSongsCount = songs.size
+
+    sortedSongs = getTop(songs, n)
+    sortedArtists = getTop(artists, n)
+
+    const years = Object.keys(totalByYear)
+
+
+    const platformEntries = [...listeningByPlatform.entries()];
+
+    const platformLabels = platformEntries.map(
+        ([platform]) => platform
+    );
+
+    labels.years = Object.keys(totalByYear)
+
+
+    const minutesByDay = listeningByDay.map(
+        time => time / 1000 / 60
+    );
+    const minutesByHour = listeningByHour.map(
+        time => time / 1000 / 60
+    );
+    const minutesByMonth = listeningByMonth.map(
+        time => time / 1000 / 60
+    );
+    const minutesByPlatform = platformEntries.map(
+        ([, time]) => time / 1000 / 60
+    );
+    const minutesByYear = Object.values(totalByYear).map(
+        year => year.audio.time / 1000 / 60
+    )
+
+    console.log("\n========================================");
+    console.log("           SPOTIFY STATISTICS");
+    console.log("========================================\n");
+
+
+    console.log("TOP SONGS");
+    console.log("----------------------------------------");
+
+    for (let i = 0; i < n && i < sortedSongs.length; i++) {
+        const [song, songData] = sortedSongs[i];
 
         console.log(
-            `${String(labels[i]).padEnd(12)} ${bar} ${values[i].toFixed(0)}${unit}`
+            `${String(i + 1).padStart(2)}. ${song.padEnd(40)} ${songData.count} odtworzeń`
         );
     }
-}
 
-function normalizePlatform(platform) {
-    if (!platform) return "unknown";
 
-    const lower = platform.toLowerCase();
+    console.log("\nTOP ARTISTS");
+    console.log("----------------------------------------");
 
-    if (lower.startsWith("android")) {
-        return "android";
-    }
+    for (let i = 0; i < n && i < sortedArtists.length; i++) {
+        const [artist, artistData] = sortedArtists[i];
 
-    if (lower.startsWith("windows")) {
-        return "windows";
-    }
-
-    if (lower.startsWith("linux")) {
-        return "linux";
-    }
-
-    if (lower.startsWith("ios")) {
-        return "ios";
-    }
-
-    if (lower.startsWith("tizen")) {
-        return "tizen";
-    }
-
-    if (lower.startsWith("web_player")) {
-        return "web player";
-    }
-
-    return platform;
-}
-
-for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-
-    const filePath = path.join(dir, file);
-    const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-
-    const yearMatch = file.match(/\d{4}/);
-    if (!yearMatch) continue;
-    const year = yearMatch[0];
-    const type = file.includes("_Audio_") ? "audio" : "video";
-
-    if (!totalByYear[year]) {
-        totalByYear[year] = {
-            audio: { time: 0, count: 0 },
-            video: { time: 0, count: 0 }
-        };
-    }
-
-    for (const entry of data) {
-        const platform = normalizePlatform(entry.platform);
-
-        if (!listeningByPlatform.has(platform)) {
-            listeningByPlatform.set(platform, 0);
-        }
-
-        totalByYear[year][type].time += entry.ms_played;
-        totalByYear[year][type].count++;
-
-        if (!ipAddressesList.includes(entry.ip_addr)) {
-            ipAddressesList.push(entry.ip_addr);
-        }
-
-        const song = entry.master_metadata_track_name;
-
-        if (!songs.has(song)) {
-            songs.set(song, {
-                count: 0,
-                time: 0,
-                artist: entry.master_metadata_album_artist_name
-            });
-        }
-
-        const songData = songs.get(song);
-
-        songData.count++;
-        songData.time += entry.ms_played;
-
-        listeningByPlatform.set(
-            platform,
-            listeningByPlatform.get(platform) + entry.ms_played
+        console.log(
+            `${String(i + 1).padStart(2)}. ${artist.padEnd(40)} ${artistData.count} odtworzeń`
         );
-
-        const date = new Date(entry.ts);
-        const time = entry.ms_played;
-
-        listeningByDay[date.getDay()] += time;
-        listeningByHour[date.getHours()] += time;
-        listeningByMonth[date.getMonth()] += time;
-    }
-}
-
-for (const songData of songs.values()) {
-    const artist = songData.artist;
-
-    if (!artists.has(artist)) {
-        artists.set(artist, {
-            count: 0,
-            time: 0
-        });
     }
 
-    const artistData = artists.get(artist);
 
-    artistData.count += songData.count;
-    artistData.time += songData.time;
-}
+    console.log("\nGENERAL STATISTICS");
+    console.log("----------------------------------------");
 
-for (const entry of Object.values(totalByYear)) {
-    totalSongsTime += entry.audio.time / (1000 * 60);
-    totalSongsCount += entry.audio.count;
-
-    totalVideoTime += entry.video.time / (1000 * 60);
-    totalVideoCount += entry.video.count;
-}
-
-yearsCount = Object.keys(totalByYear).length
-
-yearlySongsTimeAverage = (totalSongsTime / yearsCount);
-yearlyVideoTimeAverage = (totalVideoTime / yearsCount);
-
-totalUniqueSongsCount = songs.size
-sortedSongs = [...songs.entries()]
-    .sort((a, b) => b[1].count - a[1].count);
-sortedArtists = [...artists.entries()]
-    .sort((a, b) => b[1].count - a[1].count);
-
-const platformEntries = [...listeningByPlatform.entries()];
-
-const platformLabels = platformEntries.map(
-    ([platform]) => platform
-);
-
-
-
-const minutesByDay = listeningByDay.map(
-    time => time / 1000 / 60
-);
-const minutesByHour = listeningByHour.map(
-    time => time / 1000 / 60
-);
-const minutesByMonth = listeningByMonth.map(
-    time => time / 1000 / 60
-);
-const minutesByPlatform = platformEntries.map(
-    ([, time]) => time / 1000 / 60
-);
-
-console.log("\n========================================");
-console.log("           SPOTIFY STATISTICS");
-console.log("========================================\n");
-
-
-console.log("TOP SONGS");
-console.log("----------------------------------------");
-
-for (let i = 0; i < n && i < sortedSongs.length; i++) {
-    const [song, songData] = sortedSongs[i];
+    console.log(`Czas słuchania muzyki                : ${totalSongsTime.toFixed(2)} min`);
+    console.log(`Czyli w ciągu ${yearsCount} lat                  : ${formatTime(totalSongsTime)}`);
+    console.log(`Czas oglądania podcastów             : ${totalVideoTime.toFixed(2)} min`);
+    console.log(`Całkowita liczba odtworzeń muzyki    : ${totalSongsCount}`);
+    console.log(`Całkowita liczba odtworzeń podcastów : ${totalVideoCount}`);
 
     console.log(
-        `${String(i + 1).padStart(2)}. ${song.padEnd(40)} ${songData.count} odtworzeń`
+        `Średnio muzyki / rok                 : ${yearlySongsTimeAverage.toFixed(2)} min`
     );
-}
-
-
-console.log("\nTOP ARTISTS");
-console.log("----------------------------------------");
-
-for (let i = 0; i < n && i < sortedArtists.length; i++) {
-    const [artist, artistData] = sortedArtists[i];
 
     console.log(
-        `${String(i + 1).padStart(2)}. ${artist.padEnd(40)} ${artistData.count} odtworzeń`
+        `Średnio podcastów / rok              : ${yearlyVideoTimeAverage.toFixed(2)} min`
     );
+
+    console.log(`Unikalne IP                          : ${ipAddressesList.length}`);
+
+
+    console.log("\n========================================\n");
+
+    console.log("\nCHARTS")
+    console.log("----------------------------------------");
+
+    console.log(`\nWysłuchane minuty według lat\n`)
+    printBarChart(labels.years, minutesByYear, " min")
+    console.log(`\nWysłuchane minuty według miesiecy\n`)
+    printBarChart(labels.months, minutesByMonth, " min")
+    console.log(`\nWysłuchane minuty według dni tygodnia\n`)
+    printBarChart(labels.days, minutesByDay, " min")
+    console.log(`\nWysłuchane minuty według godzin\n`)
+    printBarChart(labels.hours, minutesByHour, " min")
+    console.log(`\nWysłuchane minuty według platformy\n`)
+    printBarChart(platformLabels, minutesByPlatform, " min")
+
+    console.log("\n========================================\n");
+
+    console.log(`\nYEARLY TOPS`);
+    console.log("----------------------------------------");
+
+    for (const year of years) {
+        const yearData = totalByYear[year];
+
+        const songTop = getTop(yearlySongs.get(year), n);
+        const artistsTop = getTop(yearlyArtists.get(year), n);
+
+        const minutes = yearData.audio.time / (1000 * 60);
+        const count = yearData.audio.count;
+
+        console.log(`\n📅 ${year}`);
+        console.log("----------------------------------------");
+
+        console.log(`Czas słuchania : ${formatTime(minutes)}`);
+        console.log(`Liczba utworów : ${count}`);
+
+        console.log(`\n🎵 TOP SONGS`);
+
+        for (let i = 0; i < songTop.length; i++) {
+            const [song, data] = songTop[i];
+
+            console.log(
+                `${String(i + 1).padStart(2)}. ${song.padEnd(40)} ${data.count} odtworzeń`
+            );
+        }
+
+        console.log(`\n🎤 TOP ARTISTS`);
+
+        for (let i = 0; i < artistsTop.length; i++) {
+            const [artist, data] = artistsTop[i];
+
+            console.log(
+                `${String(i + 1).padStart(2)}. ${artist.padEnd(40)} ${data.count} odtworzeń`
+            );
+        }
+    }
 }
-
-
-console.log("\nGENERAL STATISTICS");
-console.log("----------------------------------------");
-
-console.log(`Czas słuchania muzyki                : ${totalSongsTime.toFixed(2)} min`);
-console.log(`Czyli w ciągu ${yearsCount} lat                  : ${formatTime(totalSongsTime)}`);
-console.log(`Czas oglądania podcastów             : ${totalVideoTime.toFixed(2)} min`);
-console.log(`Całkowita liczba odtworzeń muzyki    : ${totalSongsCount}`);
-console.log(`Całkowita liczba odtworzeń podcastów : ${totalVideoCount}`);
-
-console.log(
-    `Średnio muzyki / rok                 : ${yearlySongsTimeAverage.toFixed(2)} min`
-);
-
-console.log(
-    `Średnio podcastów / rok              : ${yearlyVideoTimeAverage.toFixed(2)} min`
-);
-
-console.log(`Unikalne IP                          : ${ipAddressesList.length}`);
-
-
-console.log("\n========================================\n");
-
-console.log("\nCHARTS")
-console.log("----------------------------------------");
-
-console.log(`\nWysłuchane minuty według miesiecy\n`)
-printBarChart(labels.months, minutesByMonth," min")
-console.log(`\nWysłuchane minuty według dni tygodnia\n`)
-printBarChart(labels.days, minutesByDay," min")
-console.log(`\nWysłuchane minuty według godzin\n`)
-printBarChart(labels.hours, minutesByHour," min")
-console.log(`\nWysłuchane minuty według platformy\n`)
-printBarChart(platformLabels, minutesByPlatform," min")
-
-console.log("\n========================================\n");
