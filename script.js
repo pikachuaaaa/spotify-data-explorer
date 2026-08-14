@@ -38,6 +38,7 @@ function run(n) {
 
     const songs = new Map()
     const artists = new Map()
+    const albums = new Map()
 
     let totalUniqueSongsCount = 0
 
@@ -54,14 +55,15 @@ function run(n) {
         months: ["Styczeń", "Luteń", "Marzeń", "Kwiecień", "Majeń", "Czerwień", "Lipień", "Sierpień", "Wrzesień", "Październień", "Listopadzień", "Grudzień"],
         hours: []
     }
-    for (let i = 1; i <= 24; i++) {
-        labels.hours.push(i)
+    for (let i = 0; i < 24; i++) {
+        labels.hours.push(`${String(i).padStart(2, "0")}:00`);
     }
-
-    let sortedSongs
 
     const yearlySongs = new Map()
     const yearlyArtists = new Map()
+    const yearlyAlbums = new Map()
+
+    const dailyMusic = new Map()
 
     function formatTime(minutes) {
         const days = Math.floor(minutes / 1440);
@@ -70,7 +72,17 @@ function run(n) {
         const hours = Math.floor(minutes / 60);
         minutes = Math.round(minutes % 60);
 
-        return `${days} dni, ${hours} godz. ${minutes} min`;
+        let output = ``
+        if (days > 0) {
+            output += `${days} dni, `;
+        }
+        if (hours > 0) {
+            output += `${hours} godz. `;
+        }
+        if (minutes > 0) {
+            output += `${minutes} min`;
+        }
+        return output;
     }
 
     function progressBar(
@@ -180,6 +192,10 @@ function run(n) {
             yearlyArtists.set(year, new Map());
         }
 
+        if (!yearlyAlbums.has(year)) {
+            yearlyAlbums.set(year, new Map());
+        }
+
         if (!totalByYear[year]) {
             totalByYear[year] = {
                 audio: {time: 0, count: 0},
@@ -194,6 +210,22 @@ function run(n) {
                 listeningByPlatform.set(platform, 0);
             }
 
+            if (type === "audio") {
+                const day = entry.ts.split("T")[0];
+
+                if (!dailyMusic.has(day)) {
+                    dailyMusic.set(day, {
+                        time: 0,
+                        count: 0
+                    });
+                }
+
+                const dayData = dailyMusic.get(day);
+
+                dayData.time += entry.ms_played;
+                dayData.count++;
+            }
+
             totalByYear[year][type].time += entry.ms_played;
             totalByYear[year][type].count++;
 
@@ -203,6 +235,7 @@ function run(n) {
 
             const song = entry.master_metadata_track_name;
             const artist = entry.master_metadata_album_artist_name;
+            const album = entry.master_metadata_album_album_name;
 
 
             if (!songs.has(song)) {
@@ -230,8 +263,21 @@ function run(n) {
             artistData.count++;
             artistData.time += entry.ms_played;
 
+            if (!albums.has(album)) {
+                albums.set(album, {
+                    count: 0,
+                    time: 0
+                })
+            }
+
+            const albumData = albums.get(album);
+
+            albumData.count++;
+            albumData.time += entry.ms_played;
+
             const songsThisYear = yearlySongs.get(year);
-            const artistsThisYear = yearlyArtists.get(year);
+            const artistsThisYear = yearlyArtists.get(year)
+            const albumsThisYear = yearlyAlbums.get(year);
 
             if (!songsThisYear.has(song)) {
                 songsThisYear.set(song, {
@@ -257,6 +303,18 @@ function run(n) {
 
             yearlyArtistData.count++;
             yearlyArtistData.time += entry.ms_played;
+
+            if (!albumsThisYear.has(album)) {
+                albumsThisYear.set(album, {
+                    count: 0,
+                    time: 0
+                })
+            }
+
+            const yearlyAlbumData = albumsThisYear.get(album);
+
+            yearlyAlbumData.count++;
+            yearlyAlbumData.time += entry.ms_played;
 
             listeningByPlatform.set(
                 platform,
@@ -287,8 +345,14 @@ function run(n) {
 
     totalUniqueSongsCount = songs.size
 
-    sortedSongs = getTop(songs, n)
-    sortedArtists = getTop(artists, n)
+    const sortedSongs = getTop(songs, n)
+    const sortedArtists = getTop(artists, n)
+    const sortedAlbums = getTop(albums, n)
+
+    const sortedDays = [...dailyMusic.entries()]
+        .sort((a, b) => b[1].time - a[1].time)
+        .slice(0, n);
+    const [mostMusicDate, mostMusicData] = sortedDays[0]
 
     const years = Object.keys(totalByYear)
 
@@ -347,6 +411,29 @@ function run(n) {
     }
 
 
+    console.log("\nTOP ALBUMS");
+    console.log("----------------------------------------");
+
+    for (let i = 0; i < n && i < sortedAlbums.length; i++) {
+        const [album, albumData] = sortedAlbums[i];
+
+        console.log(
+            `${String(i + 1).padStart(2)}. ${album.padEnd(40)} ${albumData.count} odtworzeń`
+        );
+    }
+
+    console.log("\nTOP MUSIC DAYS");
+    console.log("----------------------------------------");
+
+    for (let i = 0; i < 5 && i < sortedDays.length; i++) {
+        const [date, dayData] = sortedDays[i];
+
+        console.log(
+            `${i + 1}. ${date} — ${formatTime(dayData.time / 60000)}`
+        );
+    }
+
+
     console.log("\nGENERAL STATISTICS");
     console.log("----------------------------------------");
 
@@ -363,8 +450,10 @@ function run(n) {
     console.log(
         `Średnio podcastów / rok              : ${yearlyVideoTimeAverage.toFixed(2)} min`
     );
+    console.log(`Średnio muzyki / dzień               : ${(totalSongsTime / dailyMusic.size).toFixed(2)} min`);
 
     console.log(`Unikalne IP                          : ${ipAddressesList.length}`);
+    console.log(`Najbardziej muzyczny dzień           : ${mostMusicDate} - ${formatTime(mostMusicData.time / 60000)}`);
 
 
     console.log("\n========================================\n");
@@ -393,6 +482,7 @@ function run(n) {
 
         const songTop = getTop(yearlySongs.get(year), n);
         const artistsTop = getTop(yearlyArtists.get(year), n);
+        const albumsTop = getTop(yearlyAlbums.get(year), n);
 
         const minutes = yearData.audio.time / (1000 * 60);
         const count = yearData.audio.count;
@@ -421,6 +511,14 @@ function run(n) {
             console.log(
                 `${String(i + 1).padStart(2)}. ${artist.padEnd(40)} ${data.count} odtworzeń`
             );
+        }
+
+        console.log(`\n TOP ALBUMS`)
+
+        for (let i = 0; i < albumsTop.length; i++) {
+            const [album, data] = albumsTop[i];
+
+            console.log(`${String(i + 1).padStart(2)}. ${album.padEnd(40)} ${data.count} odtworzeń`)
         }
     }
 }
