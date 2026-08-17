@@ -387,7 +387,7 @@ function run(n) {
     console.log("========================================\n");
 
 
-    console.log("TOP SONGS");
+    console.log("ALL TIME TOP SONGS");
     console.log("----------------------------------------");
 
     for (let i = 0; i < n && i < sortedSongs.length; i++) {
@@ -399,7 +399,7 @@ function run(n) {
     }
 
 
-    console.log("\nTOP ARTISTS");
+    console.log("\nALL TIME TOP ARTISTS");
     console.log("----------------------------------------");
 
     for (let i = 0; i < n && i < sortedArtists.length; i++) {
@@ -411,7 +411,7 @@ function run(n) {
     }
 
 
-    console.log("\nTOP ALBUMS");
+    console.log("\nALL TIME TOP ALBUMS");
     console.log("----------------------------------------");
 
     for (let i = 0; i < n && i < sortedAlbums.length; i++) {
@@ -487,13 +487,13 @@ function run(n) {
         const minutes = yearData.audio.time / (1000 * 60);
         const count = yearData.audio.count;
 
-        console.log(`\n📅 ${year}`);
+        console.log(`\n ${year}`);
         console.log("----------------------------------------");
 
         console.log(`Czas słuchania : ${formatTime(minutes)}`);
         console.log(`Liczba utworów : ${count}`);
 
-        console.log(`\n🎵 TOP SONGS`);
+        console.log(`\n TOP SONGS`);
 
         for (let i = 0; i < songTop.length; i++) {
             const [song, data] = songTop[i];
@@ -503,7 +503,7 @@ function run(n) {
             );
         }
 
-        console.log(`\n🎤 TOP ARTISTS`);
+        console.log(`\n TOP ARTISTS`);
 
         for (let i = 0; i < artistsTop.length; i++) {
             const [artist, data] = artistsTop[i];
@@ -522,3 +522,5 @@ function run(n) {
         }
     }
 }
+
+
